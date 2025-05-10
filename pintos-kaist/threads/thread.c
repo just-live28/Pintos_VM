@@ -29,7 +29,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
+static struct list sleep_list;
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -156,8 +156,7 @@ thread_tick (void) {
 		intr_yield_on_return ();
 }
 
-<<<<<<< Updated upstream
-=======
+
 void thread_sleep(int64_t ticks) {
 	struct thread *curr;
 	enum intr_level old_level;
@@ -194,7 +193,7 @@ void thread_wakeup(int64_t current_ticks) {
 
 
 
->>>>>>> Stashed changes
+
 /* Prints thread statistics. */
 void
 thread_print_stats (void) {
