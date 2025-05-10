@@ -120,6 +120,13 @@ void thread_start (void);
 void thread_tick (void);
 void thread_print_stats (void);
 
+void thread_sleep(int64_t ticks);
+void thread_wakeup(int64_t global_ticks);
+bool cmp_thread_ticks(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+void preempt_priority(void);
+
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
