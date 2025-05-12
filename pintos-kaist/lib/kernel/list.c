@@ -487,3 +487,15 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 	}
 	return min;
 }
+
+
+
+
+
+bool list_elem_contains(struct list *list , struct list_elem *elem){
+	for(struct list_elem *cur = list_begin(list); cur != list_end(list); cur = list_next(cur)){
+		if(cur == elem)
+			return true;
+	}
+	return false;
+}
