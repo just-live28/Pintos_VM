@@ -7,6 +7,7 @@
 /* A counting semaphore. */
 struct semaphore {
 	unsigned value;             /* Current value. */
+
 	struct list waiters;        /* List of waiting threads. */
 };
 
@@ -39,6 +40,12 @@ void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
+
+
+
+void donation_priority(struct thread *t);
+void free_donation(struct lock *lock, struct list *donators);
+void reroll_priority(struct thread *t);
 
 /* Optimization barrier.
  *

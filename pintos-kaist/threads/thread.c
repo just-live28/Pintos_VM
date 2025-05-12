@@ -65,6 +65,13 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+static void update_load_avg(void);
+static void update_recent_cpu(struct thread *t);
+static void update_all_recent_cpu(void);
+static void update_priority(struct thread *t);
+static void update_all_priority(void);
+void mlfqs_on_tick(void);
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -294,6 +301,7 @@ void preempt_priority(void)
 	if (list_empty(&ready_list))
 		return;
 	struct thread *curr = thread_current();
+	list_sort(&ready_list, cmp_priority, NULL);
 	struct thread *ready = list_entry(list_front(&ready_list), struct thread, elem);
 	if (curr->priority < ready->priority) // ready_list에 현재 실행중인 스레드보다 우선순위가 높은 스레드가 있으면
 		thread_yield();
@@ -379,7 +387,10 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	struct thread *cur = thread_current();
+	cur->original_priority = new_priority;
+
+	reroll_priority(cur);
 	preempt_priority();
 }
 
@@ -478,6 +489,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	//도네이션 관련 초기화
+	list_init(&t->donation_list);
+	t->original_priority = priority;
+	t->waiting = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -656,4 +672,23 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+static void update_load_avg(void) {
+	// TODO
+}
+static void update_recent_cpu(struct thread *t) {
+	// TODO
+}
+static void update_all_recent_cpu(void) {
+	// TODO
+}
+static void update_priority(struct thread *t) {
+	// TODO
+}
+static void update_all_priority(void) {
+	// TODO
+}
+void mlfqs_on_tick(void) {
+	// TODO
 }

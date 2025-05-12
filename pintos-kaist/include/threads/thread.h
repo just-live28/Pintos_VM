@@ -4,7 +4,11 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/fixed-point.h"
 #include "threads/interrupt.h"
+//도네이션을 위해 추가
+#include "threads/synch.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -91,10 +95,20 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+
+	int nice;                // 기본값 0, 사용자 설정 가능
+	fixed_t recent_cpu;      // 고정소수점으로 표현된 최근 CPU 사용량
+
+	//도네이션 발생 시 복귀할 priority
+	int original_priority;
+
+	struct list donation_list;
+	struct lock *waiting;
+	struct list_elem donation_elem;
+
 	int64_t wakeup_tick;
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
