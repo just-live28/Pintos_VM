@@ -423,30 +423,31 @@ int thread_get_priority(void)
 }
 
 /* Sets the current thread's nice value to NICE. */
-void thread_set_nice(int nice UNUSED)
-{
-	/* TODO: Your implementation goes here */
+void
+thread_set_nice (int nice) {
+	struct thread *curr = thread_current();
+	curr->nice = nice;
+
+	update_priority(curr);  // 함수 호출로 nice값 반영하여 priority 재계산
+	preempt_priority();
 }
 
 /* Returns the current thread's nice value. */
-int thread_get_nice(void)
-{
-	/* TODO: Your implementation goes here */
-	return 0;
+int
+thread_get_nice (void) {
+	return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
-int thread_get_load_avg(void)
-{
-	/* TODO: Your implementation goes here */
-	return 0;
+int
+thread_get_load_avg (void) {
+	return fixed_to_int_round(LOAD_AVG);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
-int thread_get_recent_cpu(void)
-{
-	/* TODO: Your implementation goes here */
-	return 0;
+int
+thread_get_recent_cpu (void) {
+	return fixed_to_int_round(thread_current()->recent_cpu);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.

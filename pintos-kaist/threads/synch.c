@@ -208,7 +208,10 @@ lock_acquire (struct lock *lock) {
 		cur->waiting = lock;
 			
 		list_insert_ordered(&(lock->holder->donation_list), &(cur->donation_elem), cmp_priority, NULL);
-		donation_priority(cur);
+
+		if (!thread_mlfqs) {
+			donation_priority(cur);
+		}
 		
 	}
 
@@ -261,15 +264,19 @@ lock_release (struct lock *lock) {
 		return;
   	}
 
-	free_donation(lock,&t->donation_list);
-	reroll_priority(t);
-
+	if (!thread_mlfqs) {
+		free_donation(lock,&t->donation_list);
+		reroll_priority(t);
+	}
 	sema_up (&lock->semaphore);
 
 
 	intr_set_level(old_level);
-	if (t->priority < t->original_priority)
-		thread_yield();
+	if (!thread_mlfqs) {
+		if (t->priority < t->original_priority) {
+			thread_yield();
+		}
+	}
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -381,7 +388,7 @@ bool cmp_sema_priority(const struct list_elem *a,
 void donation_priority(struct thread *t){
 	//mlfqs 관련 분기
 	if(thread_mlfqs) return;
-	
+
 	struct thread *nt;
 	while ((t->waiting)){
 		nt = t->waiting->holder;
@@ -402,7 +409,7 @@ void donation_priority(struct thread *t){
 void free_donation(struct lock *lock, struct list *donators){
 	//mlfqs 관련 분기
 	if(thread_mlfqs) return;
-	
+
 	struct list_elem *cur = list_begin(donators);
 	while (cur != list_end(donators)){
 		struct thread *t = list_entry(cur, struct thread, donation_elem);
@@ -417,8 +424,8 @@ void free_donation(struct lock *lock, struct list *donators){
 void reroll_priority(struct thread *t){
 	//mlfqs 관련 분기
 	if(thread_mlfqs) return;
-	
-	
+
+
 	t->priority = t->original_priority;
 	if(!list_empty(&(t->donation_list))){
 		list_sort(&t->donation_list, cmp_priority, NULL);
@@ -426,6 +433,4 @@ void reroll_priority(struct thread *t){
 		if(t->priority < max_t->priority)
 			t->priority = max_t->priority;
 	}
-	
-
 }
