@@ -791,7 +791,7 @@ void mlfqs_on_tick(void)
 	// 매 4tick마다 실행
 	if (timer_ticks() % 4 == 0) {
 		update_all_priority();
-		preempt_priority();
+		list_sort(&ready_list, cmp_priority, NULL);
 	}
 }
 
