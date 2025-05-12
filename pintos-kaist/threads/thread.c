@@ -65,12 +65,7 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
-static void update_load_avg(void);
-static void update_recent_cpu(struct thread *t);
-static void update_all_recent_cpu(void);
-static void update_priority(struct thread *t);
-static void update_all_priority(void);
-void mlfqs_on_tick(void);
+static fixed_t LOAD_AVG;
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -240,6 +235,15 @@ thread_create (const char *name, int priority,
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
 
+
+	//mlfqs 켜져 있을 시, recent_cpu 최신화
+	if (thread_mlfqs){
+  		t->recent_cpu = thread_current()->recent_cpu;
+
+		//은범님께 : 해당 함수 인자 최신화 필요합니다 : 최신화된 recent_cpu 기반으로 priority 재 측정
+		// t->priority = update_priority();
+	}
+
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	t->tf.rip = (uintptr_t) kernel_thread;
@@ -387,6 +391,9 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
+	if(thread_mlfqs){
+		return;
+	}
 	struct thread *cur = thread_current();
 	cur->original_priority = new_priority;
 
@@ -428,6 +435,7 @@ thread_get_recent_cpu (void) {
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
+
 
    The idle thread is initially put on the ready list by
    thread_start().  It will be scheduled once initially, at which
@@ -494,6 +502,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_init(&t->donation_list);
 	t->original_priority = priority;
 	t->waiting = NULL;
+
+
+	//mlfqs 관련 초기화
+	t->nice = 0;
+	t->recent_cpu = 0;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -672,23 +685,4 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
-}
-
-static void update_load_avg(void) {
-	// TODO
-}
-static void update_recent_cpu(struct thread *t) {
-	// TODO
-}
-static void update_all_recent_cpu(void) {
-	// TODO
-}
-static void update_priority(struct thread *t) {
-	// TODO
-}
-static void update_all_priority(void) {
-	// TODO
-}
-void mlfqs_on_tick(void) {
-	// TODO
 }

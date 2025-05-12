@@ -106,6 +106,7 @@ struct thread {
 	struct lock *waiting;
 	struct list_elem donation_elem;
 
+
 	int64_t wakeup_tick;
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
