@@ -66,6 +66,12 @@ static void schedule (void);
 static tid_t allocate_tid (void);
 
 static fixed_t LOAD_AVG;
+static void update_load_avg(void);
+static void update_recent_cpu(struct thread *t);
+static void update_all_recent_cpu(void);
+static void update_priority(struct thread *t);
+static void update_all_priority(void);
+void mlfqs_on_tick(void);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -685,4 +691,23 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+static void update_load_avg(void) {
+	// TODO
+}
+static void update_recent_cpu(struct thread *t) {
+	// TODO
+}
+static void update_all_recent_cpu(void) {
+	// TODO
+}
+static void update_priority(struct thread *t) {
+	// TODO
+}
+static void update_all_priority(void) {
+	// TODO
+}
+void mlfqs_on_tick(void) {
+	// TODO
 }
