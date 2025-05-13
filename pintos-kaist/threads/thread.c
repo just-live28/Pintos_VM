@@ -170,7 +170,10 @@ void thread_tick(void)
 void thread_sleep(int64_t ticks)
 {
 	struct thread *curr = thread_current();
-	if (curr == idle_thread) {return;}
+	if (curr == idle_thread)
+	{
+		return;
+	}
 
 	// 임계 구역인 sleep_list를 수정해야 하므로 인터럽트 해제
 	enum intr_level old_level = intr_disable();
@@ -419,31 +422,31 @@ int thread_get_priority(void)
 }
 
 /* Sets the current thread's nice value to NICE. */
-void
-thread_set_nice (int nice) {
+void thread_set_nice(int nice)
+{
 	struct thread *curr = thread_current();
 	curr->nice = nice;
 
-	update_priority(curr);  // 함수 호출로 nice값 반영하여 priority 재계산
+	update_priority(curr); // 함수 호출로 nice값 반영하여 priority 재계산
 	preempt_priority();
 }
 
 /* Returns the current thread's nice value. */
-int
-thread_get_nice (void) {
+int thread_get_nice(void)
+{
 	return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
-int
-thread_get_load_avg (void) {
-	return fixed_to_int_round(fixed_mul_int (LOAD_AVG, 100));
+int thread_get_load_avg(void)
+{
+	return fixed_to_int_round(fixed_mul_int(LOAD_AVG, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
-int
-thread_get_recent_cpu (void) {
-	return fixed_to_int_round(thread_current()->recent_cpu);
+int thread_get_recent_cpu(void)
+{
+	return fixed_to_int_round(fixed_mul_int(thread_current()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -754,13 +757,14 @@ static void update_priority(struct thread *t)
 	if (t == idle_thread)
 		return;
 	// 	priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
-	int priority = PRI_MAX
-		- fixed_to_int_round(fixed_div_int(t->recent_cpu, 4))
-		- t->nice * 2;
+	int priority = PRI_MAX - fixed_to_int_round(fixed_div_int(t->recent_cpu, 4)) - t->nice * 2;
 
-	if (priority < PRI_MIN) {
+	if (priority < PRI_MIN)
+	{
 		priority = PRI_MIN;
-	} else if (priority > PRI_MAX) {
+	}
+	else if (priority > PRI_MAX)
+	{
 		priority = PRI_MAX;
 	}
 
@@ -775,18 +779,21 @@ static void update_all_priority(void)
 void mlfqs_on_tick(void)
 {
 	// 매 tick마다 실행
-	if (thread_current() != idle_thread) {
+	if (thread_current() != idle_thread)
+	{
 		thread_current()->recent_cpu = add_fixed(thread_current()->recent_cpu, int_to_fixed(1));
 	}
 
 	// 1초(100tick)마다 실행
-	if (timer_ticks() % TIMER_FREQ == 0) {
+	if (timer_ticks() % TIMER_FREQ == 0)
+	{
 		update_load_avg();
 		update_all_recent_cpu();
 	}
 
 	// 매 4tick마다 실행
-	if (timer_ticks() % 4 == 0) {
+	if (timer_ticks() % 4 == 0)
+	{
 		update_all_priority();
 		list_sort(&ready_list, cmp_priority, NULL);
 	}
