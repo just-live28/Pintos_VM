@@ -169,19 +169,18 @@ void thread_tick(void)
 
 void thread_sleep(int64_t ticks)
 {
-	struct thread *curr;
-	enum intr_level old_level;
-	old_level = intr_disable(); // 인터럽트 비활성
+	struct thread *curr = thread_current();
+	if (curr == idle_thread) {return;}
 
-	curr = thread_current();	 // 현재 스레드
-	ASSERT(curr != idle_thread); // 현재 스레드가 idle이 아닐때만
+	// 임계 구역인 sleep_list를 수정해야 하므로 인터럽트 해제
+	enum intr_level old_level = intr_disable();
 
-	curr->wakeup_tick = ticks; // 일어날 시각 저장
+	curr->wakeup_tick = ticks;
+	list_insert_ordered(&sleep_list, &curr->elem, cmp_thread_ticks, NULL);
 
-	list_insert_ordered(&sleep_list, &curr->elem, cmp_thread_ticks, NULL); // sleep_list에 추가
-	thread_block();														   // 현재 스레드 재우기
+	thread_block();
 
-	intr_set_level(old_level); // 인터럽트 상태를 원래 상태로 변경
+	intr_set_level(old_level);
 }
 
 void thread_wakeup(int64_t current_ticks)
@@ -198,7 +197,6 @@ void thread_wakeup(int64_t current_ticks)
 		{
 			curr_elem = list_remove(curr_elem);
 			thread_unblock(curr_thread);
-			preempt_priority();
 		}
 		else
 			break;
@@ -249,9 +247,7 @@ tid_t thread_create(const char *name, int priority,
 	if (thread_mlfqs)
 	{
 		t->recent_cpu = thread_current()->recent_cpu;
-
-		// 은범님께 : 해당 함수 인자 최신화 필요합니다 : 최신화된 recent_cpu 기반으로 priority 재 측정
-		//  t->priority = update_priority();
+		update_priority(t);
 	}
 
 	/* Call the kernel_thread if it scheduled.
@@ -441,7 +437,7 @@ thread_get_nice (void) {
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) {
-	return fixed_to_int_round(LOAD_AVG);
+	return fixed_to_int_round(fixed_mul_int (LOAD_AVG, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -692,6 +688,7 @@ schedule(void)
 		if (curr && curr->status == THREAD_DYING && curr != initial_thread)
 		{
 			ASSERT(curr != next);
+			list_remove(&curr->allelem);
 			list_push_back(&destruction_req, &curr->elem);
 		}
 
@@ -740,7 +737,7 @@ static void update_recent_cpu(struct thread *t)
 	// recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
 	fixed_t coeff = div_fixed(
 		fixed_mul_int(LOAD_AVG, 2),
-		fixed_add_int(fixed_mul_int(LOAD_AVG, 2), 1));
+		add_fixed(fixed_mul_int(LOAD_AVG, 2), int_to_fixed(1)));
 
 	t->recent_cpu = add_fixed(
 		mul_fixed(coeff, t->recent_cpu),
