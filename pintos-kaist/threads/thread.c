@@ -266,7 +266,10 @@ tid_t thread_create(const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock(t);
-	preempt_priority();
+
+	if (cmp_priority(&t->elem, &cur->elem, NULL)) {
+		thread_yield();
+	}
 
 	return tid;
 }
@@ -316,8 +319,13 @@ void preempt_priority(void)
 	struct thread *curr = thread_current();
 	list_sort(&ready_list, cmp_priority, NULL);
 	struct thread *ready = list_entry(list_front(&ready_list), struct thread, elem);
-	if (curr->priority < ready->priority) // ready_list에 현재 실행중인 스레드보다 우선순위가 높은 스레드가 있으면
-		thread_yield();
+	if (curr->priority < ready->priority) { // ready_list에 현재 실행중인 스레드보다 우선순위가 높은 스레드가 있으면
+		if (intr_context()) {
+			intr_yield_on_return();
+		} else {
+			thread_yield();
+		}
+	}
 }
 
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)

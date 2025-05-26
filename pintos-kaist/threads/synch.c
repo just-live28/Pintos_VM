@@ -115,8 +115,8 @@ sema_up (struct semaphore *sema) {
 		thread_unblock(t);
 	}
 	sema->value++;
+	preempt_priority();
 	intr_set_level(old_level);
-	preempt_priority();	// 인터럽트를 켜야 선점 가능
 }
 
 
