@@ -267,6 +267,7 @@ tid_t thread_create(const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock(t);
 
+	struct thread *cur = thread_current();
 	if (cmp_priority(&t->elem, &cur->elem, NULL)) {
 		thread_yield();
 	}
