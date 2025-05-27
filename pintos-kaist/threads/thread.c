@@ -266,8 +266,13 @@ tid_t thread_create(const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock(t);
-
 	struct thread *cur = thread_current();
+
+	// 자식 스레드의 부모를 cur로 설정
+    t->parent = cur;
+    // 부모 스레드의 자식 리스트에 자식 스레드 추가
+    list_push_back(&cur->children, &t->child_elem);	
+
 	if (cmp_priority(&t->elem, &cur->elem, NULL)) {
 		thread_yield();
 	}
@@ -536,6 +541,12 @@ init_thread(struct thread *t, const char *name, int priority)
 
 	/* Add to all threads list. */
 	list_push_back(&all_list, &t->allelem);
+
+	t->exit_status = 0;
+	sema_init(&t->wait_sema, 0);
+	sema_init(&t->exit_sema, 0);
+	sema_init(&t->fork_sema, 0);
+	list_init(&t->children);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

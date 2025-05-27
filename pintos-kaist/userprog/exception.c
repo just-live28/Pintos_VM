@@ -81,13 +81,12 @@ kill (struct intr_frame *f) {
 	   exception originated. */
 	switch (f->cs) {
 		case SEL_UCSEG:
-			/* User's code segment, so it's a user exception, as we
-			   expected.  Kill the user process.  */
-			printf ("%s: dying due to interrupt %#04llx (%s).\n",
-					thread_name (), f->vec_no, intr_name (f->vec_no));
-			intr_dump_frame (f);
-			thread_exit ();
-
+		{
+			struct thread *t = thread_current();	// 현재 프로세스 가져오기
+			printf("%s: exit(-1)\n", t->name);		// 규격에 맞는 종료 메시지 출력
+			t->exit_status = -1;					// exit_status를 -1로 설정
+			thread_exit();							// 프로세스 종료
+		}
 		case SEL_KCSEG:
 			/* Kernel's code segment, which indicates a kernel bug.
 			   Kernel code shouldn't throw exceptions.  (Page faults

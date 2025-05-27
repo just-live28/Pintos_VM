@@ -13,6 +13,8 @@
 #include "vm/vm.h"
 #endif
 
+#define FDT_PAGES 1						// 프로세스 FDT 초기화 시 할당할 페이지
+#define MAX_FD (FDT_PAGES * (1 << 9)) 	// 최대 FD 개수 (전체 범위 순회 시 사용)
 
 /* States in a thread's life cycle. */
 enum thread_status {
@@ -106,11 +108,26 @@ struct thread {
 	struct lock *waiting;
 	struct list_elem donation_elem;
 
-
 	int64_t wakeup_tick;
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 	struct list_elem allelem;
+
+	int exit_status;	// 종료 상태 값
+	struct semaphore wait_sema;		   // 부모의 자식 종료 대기용 세마포어
+	struct semaphore exit_sema;		   // 자식 종료 시 자식의 부모 wait 마무리 대기용 세마포어
+
+	struct list children;              // 자식 프로세스 리스트
+	struct list_elem child_elem;       // 부모의 children 리스트에 들어갈 element
+	struct thread *parent;             // 부모 프로세스 포인터
+
+	struct semaphore fork_sema;		// 자식 프로세스 초기화 대기용 세마포어
+	struct intr_frame intr_frame;	// 자식 프로세스의 부모 레지스터 값 복제용 인터럽트 프레임
+
+	struct file **FDT;				// File Descriptor Table
+	int next_FD;					// 다음 사용 가능한 fd값
+	struct file *running_file;		// 현재 프로세스에서 실행 중인 파일
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
