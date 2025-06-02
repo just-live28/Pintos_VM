@@ -36,7 +36,7 @@ static void argument_stack(char *argv[], int argc, struct intr_frame *_if);
 static void
 process_init (void) {
 	struct thread *current = thread_current ();
-	current->FDT = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
+	current->FDT = palloc_get_page(PAL_ZERO);
 	current->running_file = NULL;
 	current->next_FD = 3;
 }
@@ -430,7 +430,7 @@ void process_exit(void) {
 
 	// 파일 디스크립터 테이블(FDT)에 열려 있는 모든 파일을 닫기
     // 일반적으로 stdin(0), stdout(1), stderr(2)는 닫지 않고 3번부터 닫음
-    for(int i = 3; i < cur->next_FD; i++){
+    for(int i = 0; i < cur->next_FD; i++){
         // 만약 해당 FD 슬롯에 열린 파일이 있다면
         if (cur->FDT[i] != NULL)
             file_close(cur->FDT[i]); 	// 해당 파일 닫기
@@ -438,7 +438,7 @@ void process_exit(void) {
     }
 
     // 파일 디스크립터 테이블에 할당했던 메모리 해제
-    palloc_free_multiple(cur->FDT, FDT_PAGES);
+    palloc_free_page(cur->FDT);
 
     // 현재 실행 파일 닫기(deny_write 해제는 해당 함수 안에서 자동으로 적용)
     file_close(cur->running_file);

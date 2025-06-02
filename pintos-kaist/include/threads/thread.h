@@ -13,8 +13,7 @@
 #include "vm/vm.h"
 #endif
 
-#define FDT_PAGES 1						// 프로세스 FDT 초기화 시 할당할 페이지
-#define MAX_FD (FDT_PAGES * (1 << 9)) 	// 최대 FD 개수 (전체 범위 순회 시 사용)
+#define MAX_FD (1 << 9) 	// 최대 FD 개수 (전체 범위 순회 시 사용)
 
 /* States in a thread's life cycle. */
 enum thread_status {
