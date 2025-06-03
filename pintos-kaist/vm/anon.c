@@ -1,7 +1,14 @@
 /* anon.c: Implementation of page for non-disk image (a.k.a. anonymous page). */
 
+#include <bitmap.h>	// bitmap
 #include "vm/vm.h"
+#include "threads/vaddr.h"	// PGSIZE
+#include <string.h>	// memset
 #include "devices/disk.h"
+
+static struct bitmap *swap_table;
+#define SECTORS_PER_PAGE 8
+#define INVALID_SWAP_SLOT SIZE_MAX
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
@@ -20,33 +27,72 @@ static const struct page_operations anon_ops = {
 /* Initialize the data for anonymous pages */
 void
 vm_anon_init (void) {
-	/* TODO: Set up the swap_disk. */
-	swap_disk = NULL;
+	swap_disk = disk_get(1, 1);
+	size_t swap_size = disk_size(swap_disk) / SECTORS_PER_PAGE;
+	swap_table = bitmap_create(swap_size);
 }
 
 /* Initialize the file mapping */
 bool
 anon_initializer (struct page *page, enum vm_type type, void *kva) {
-	/* Set up the handler */
 	page->operations = &anon_ops;
-
 	struct anon_page *anon_page = &page->anon;
+	anon_page->swap_slot = INVALID_SWAP_SLOT;
+	return true;
 }
 
 /* Swap in the page by read contents from the swap disk. */
 static bool
 anon_swap_in (struct page *page, void *kva) {
 	struct anon_page *anon_page = &page->anon;
+	size_t slot = anon_page->swap_slot;
+
+	if (slot == INVALID_SWAP_SLOT) {
+		memset(kva, 0, PGSIZE);
+		return true;
+	}
+
+	disk_sector_t base_sector = slot * SECTORS_PER_PAGE;
+	for (int i = 0; i < SECTORS_PER_PAGE; i++) {
+		disk_read(swap_disk, base_sector + i, kva + i * DISK_SECTOR_SIZE);
+	}
+	bitmap_reset(swap_table, anon_page->swap_slot);
+	anon_page->swap_slot = INVALID_SWAP_SLOT;
+	
+	return true;
 }
 
 /* Swap out the page by writing contents to the swap disk. */
 static bool
 anon_swap_out (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
+
+	size_t slot = bitmap_scan_and_flip(swap_table, 0, bitmap_size(swap_table), false);
+
+	if (slot == BITMAP_ERROR)
+		return false; // swap 공간 부족
+
+	disk_sector_t base_sector = slot * SECTORS_PER_PAGE;
+	uint8_t *kva = page->frame->kva;
+
+	for (int i = 0; i < SECTORS_PER_PAGE; i++) {
+		disk_write(swap_disk, base_sector + i, kva + i * DISK_SECTOR_SIZE);
+	}
+
+	anon_page->swap_slot = slot;
+	page->frame = NULL;
+
+	return true;
 }
 
 /* Destroy the anonymous page. PAGE will be freed by the caller. */
 static void
 anon_destroy (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
+	size_t slot = anon_page->swap_slot;
+
+	if (slot != INVALID_SWAP_SLOT) {
+		bitmap_reset(swap_table, slot);
+		anon_page->swap_slot = INVALID_SWAP_SLOT;
+	}
 }
