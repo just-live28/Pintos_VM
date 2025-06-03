@@ -1,6 +1,7 @@
 #ifndef VM_VM_H
 #define VM_VM_H
 #include <stdbool.h>
+#include <hash.h>
 #include "threads/palloc.h"
 
 enum vm_type {
@@ -45,7 +46,9 @@ struct page {
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
 
-	/* Your implementation */
+	struct hash_elem hash_elem;
+	bool writable;
+	enum vm_type vm_type;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -63,6 +66,15 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+	struct list_elem elem;
+	bool pinned;
+};
+
+struct lazy_load_info {
+	struct file *file;
+	off_t offset;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
 };
 
 /* The function table for page operations.
@@ -78,13 +90,17 @@ struct page_operations {
 
 #define swap_in(page, v) (page)->operations->swap_in ((page), v)
 #define swap_out(page) (page)->operations->swap_out (page)
-#define destroy(page) \
-	if ((page)->operations->destroy) (page)->operations->destroy (page)
+#define destroy(page)            \
+  do {                           \
+    if ((page)->operations->destroy)  \
+      (page)->operations->destroy(page); \
+  } while (0)
 
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash hash;
 };
 
 #include "threads/thread.h"
@@ -100,6 +116,8 @@ void spt_remove_page (struct supplemental_page_table *spt, struct page *page);
 void vm_init (void);
 bool vm_try_handle_fault (struct intr_frame *f, void *addr, bool user,
 		bool write, bool not_present);
+
+void vm_frame_free (struct frame *f);
 
 #define vm_alloc_page(type, upage, writable) \
 	vm_alloc_page_with_initializer ((type), (upage), (writable), NULL, NULL)
