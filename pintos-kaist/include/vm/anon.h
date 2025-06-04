@@ -8,8 +8,8 @@ struct anon_page {
     size_t swap_slot;
 };
 
-struct lock swap_lock;
-int *slot_refcnt;
+extern struct lock swap_lock;
+extern int *slot_refcnt;
 #define SECTORS_PER_PAGE 8
 #define INVALID_SWAP_SLOT SIZE_MAX
 

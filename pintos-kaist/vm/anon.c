@@ -7,6 +7,8 @@
 #include "devices/disk.h"
 
 static struct bitmap *swap_table;
+struct lock swap_lock;
+int *slot_refcnt;
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
