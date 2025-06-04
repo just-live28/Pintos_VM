@@ -22,7 +22,7 @@
 #include "vm/vm.h"
 #endif
 
-// #define VM
+#define VM
 #define MAX_ARGS 128
 
 static void process_cleanup (void);
@@ -863,10 +863,11 @@ lazy_load_segment (struct page *page, void *aux) {
 	void *kva = page->frame->kva;
 
 	if (file_read_at (file, kva, page_read_bytes, offset) != (int) page_read_bytes) {
+		palloc_free_page(kva);
 		return false;
 	}
 
-	memset ((uint8_t *) kva + page_read_bytes, 0, PGSIZE - page_read_bytes);
+	memset ((uint8_t *) kva + page_read_bytes, 0, page_zero_bytes);
 
 	free(info);
 	return true;
@@ -925,19 +926,14 @@ setup_stack (struct intr_frame *if_) {
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
 	struct supplemental_page_table *spt = &thread_current()->spt;
 
-	success = vm_alloc_page_with_initializer(VM_ANON, stack_bottom, true, NULL, NULL);
+	success = vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, true, NULL, NULL);
 	if (success) {
 		struct page *page = spt_find_page(spt, stack_bottom);
-		if (page != NULL) {
-			page->vm_type |= VM_MARKER_0;
-		}
 
 		success = vm_claim_page(stack_bottom);
 		if (success) {
 			if_->rsp = USER_STACK;
 		} else {
-			
-			
 			if (page != NULL)
 				spt_remove_page(spt, page);
 		}

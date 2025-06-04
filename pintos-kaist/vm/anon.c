@@ -7,8 +7,6 @@
 #include "devices/disk.h"
 
 static struct bitmap *swap_table;
-#define SECTORS_PER_PAGE 8
-#define INVALID_SWAP_SLOT SIZE_MAX
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
@@ -30,6 +28,8 @@ vm_anon_init (void) {
 	swap_disk = disk_get(1, 1);
 	size_t swap_size = disk_size(swap_disk) / SECTORS_PER_PAGE;
 	swap_table = bitmap_create(swap_size);
+	slot_refcnt = calloc(swap_size, sizeof(int));
+	lock_init(&swap_lock);
 }
 
 /* Initialize the file mapping */
@@ -52,13 +52,17 @@ anon_swap_in (struct page *page, void *kva) {
 		return true;
 	}
 
+	lock_acquire(&swap_lock);
 	disk_sector_t base_sector = slot * SECTORS_PER_PAGE;
 	for (int i = 0; i < SECTORS_PER_PAGE; i++) {
 		disk_read(swap_disk, base_sector + i, kva + i * DISK_SECTOR_SIZE);
 	}
-	bitmap_reset(swap_table, anon_page->swap_slot);
+	if (--slot_refcnt[slot] == 0) {
+		bitmap_reset(swap_table, anon_page->swap_slot);
+	}
+	lock_release(&swap_lock);
+
 	anon_page->swap_slot = INVALID_SWAP_SLOT;
-	
 	return true;
 }
 
@@ -67,6 +71,7 @@ static bool
 anon_swap_out (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
 
+	lock_acquire(&swap_lock);
 	size_t slot = bitmap_scan_and_flip(swap_table, 0, bitmap_size(swap_table), false);
 
 	if (slot == BITMAP_ERROR)
@@ -78,9 +83,10 @@ anon_swap_out (struct page *page) {
 	for (int i = 0; i < SECTORS_PER_PAGE; i++) {
 		disk_write(swap_disk, base_sector + i, kva + i * DISK_SECTOR_SIZE);
 	}
-
 	anon_page->swap_slot = slot;
 	page->frame = NULL;
+	slot_refcnt[slot] = 1;
+	lock_release(&swap_lock);
 
 	return true;
 }
@@ -92,7 +98,12 @@ anon_destroy (struct page *page) {
 	size_t slot = anon_page->swap_slot;
 
 	if (slot != INVALID_SWAP_SLOT) {
-		bitmap_reset(swap_table, slot);
+		lock_acquire(&swap_lock);
+		if (--slot_refcnt[slot] == 0) {
+			bitmap_reset(swap_table, slot);
+		}
+		lock_release(&swap_lock);
+
 		anon_page->swap_slot = INVALID_SWAP_SLOT;
 	}
 }

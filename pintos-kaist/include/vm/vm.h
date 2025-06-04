@@ -46,10 +46,6 @@ struct page {
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
 
-	struct hash_elem hash_elem;
-	bool writable;
-	enum vm_type vm_type;
-
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {
@@ -60,6 +56,8 @@ struct page {
 		struct page_cache page_cache;
 #endif
 	};
+	struct hash_elem hash_elem;
+	bool writable;
 };
 
 /* The representation of "frame" */
@@ -68,6 +66,7 @@ struct frame {
 	struct page *page;
 	struct list_elem elem;
 	bool pinned;
+	struct thread *owner;
 };
 
 struct lazy_load_info {

@@ -5,7 +5,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifndef VM
 void validate_ptr (const void *uaddr, size_t size);
+#else
+struct page *validate_ptr (const void *uaddr, size_t size);
+#endif
 void validate_str (const char *str);
 
 int64_t get_user (const uint8_t *uaddr);

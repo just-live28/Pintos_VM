@@ -5,7 +5,11 @@
 #include "threads/mmu.h"          /* PGSIZE */
 #include "threads/pte.h"          /* pml4_get_page() */
 #include <string.h>               /* memcpy */
+#ifdef VM
+#include "vm/vm.h"
+#endif
 
+#ifndef VM
 /* 내부 헬퍼: 단일 가상 주소 uaddr이 
    - NULL이 아니고
    - 사용자 영역에 속하며
@@ -45,6 +49,18 @@ validate_ptr (const void *uaddr, size_t size) {
         left -= chunk;  // 검사해야 할 남은 바이트 수 갱신
     }
 }
+#else
+struct page *
+validate_ptr (const void *uaddr, size_t size) {
+    struct thread *cur = thread_current();
+
+    if (is_kernel_vaddr(uaddr) || uaddr == NULL || !spt_find_page(&cur->spt, uaddr)) {
+        sys_exit(-1);
+    }
+
+    return spt_find_page(&cur->spt, uaddr);
+}
+#endif
 
 /* 사용자 문자열 str이 \0을 만날 때까지 매 바이트 접근 가능한지 확인
    → 문자열 전체가 사용자 영역 내에 안전하게 존재해야 함
