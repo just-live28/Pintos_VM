@@ -252,30 +252,28 @@ vm_handle_wp (struct page *page) {
 /* Return true on success */
 bool
 vm_try_handle_fault (struct intr_frame *f, void *addr,
-		bool user, bool write, bool not_present) {
-	struct supplemental_page_table *spt = &thread_current ()->spt;
+               bool user, bool write, bool not_present) {
+       struct supplemental_page_table *spt = &thread_current ()->spt;
 
-	// 이후 cow 확장 시 page && !not present에 대해 return false해야 함
-	struct page *page = spt_find_page(spt, addr);
+       // 이후 cow 확장 시 page && ! not_present에 대해 return false해야 함
+       if (addr == NULL || is_kernel_vaddr(addr))
+               return false;
 
-	if (addr == NULL || is_kernel_vaddr(addr))
-		return false;
+       struct page *page = spt_find_page(spt, addr);
 
-	if (not_present) {
-		if (page == NULL)
-			return false;
-		
-		if (write && !page->writable)
-			return false;
-		
-		return vm_do_claim_page(page);
-	}
-	
-	if (addr >= f->rsp - 32 && addr < USER_STACK) {
-		return vm_stack_growth(addr);
-	}
+       if (page == NULL) {
+               if (not_present && addr >= f->rsp - 32 && addr < USER_STACK)
+                       return vm_stack_growth(addr);
+               return false;
+       }
 
-	return false;
+       if (not_present) {
+               if (write && !page->writable)
+                       return false;
+               return vm_do_claim_page(page);
+       }
+
+       return false;
 }
 
 /* Free the page.
