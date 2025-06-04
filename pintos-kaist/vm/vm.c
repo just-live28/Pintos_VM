@@ -340,14 +340,33 @@ supplemental_page_table_copy (struct supplemental_page_table *dst,
 		struct page *sp = hash_entry(hash_cur(&it), struct page, hash_elem);
 		enum vm_type stype = page_get_type(sp);
 		
-		if (stype == VM_UNINIT) {
-			struct page *page = malloc(sizeof(struct page));
-			uninit_new(page, sp->va, sp->uninit.init, sp->uninit.type, sp->uninit.aux,
-		           sp->uninit.page_initializer);
-			page->writable = sp->writable;
-			page->va = sp->va;
-			if (!spt_insert_page(dst, page)) return false;
-		} else {
+                if (stype == VM_UNINIT) {
+                        struct page *page = malloc(sizeof(struct page));
+                        if (page == NULL)
+                                return false;
+
+                        void *aux_copy = sp->uninit.aux;
+
+                        if (VM_TYPE(sp->uninit.type) == VM_FILE && sp->uninit.aux != NULL) {
+                                struct lazy_load_info *info = malloc(sizeof(struct lazy_load_info));
+                                if (info == NULL) {
+                                        free(page);
+                                        return false;
+                                }
+                                memcpy(info, sp->uninit.aux, sizeof(struct lazy_load_info));
+                                aux_copy = info;
+                        }
+
+                        uninit_new(page, sp->va, sp->uninit.init, sp->uninit.type, aux_copy,
+                           sp->uninit.page_initializer);
+                        page->writable = sp->writable;
+                        if (!spt_insert_page(dst, page)) {
+                                if (VM_TYPE(sp->uninit.type) == VM_FILE && aux_copy != NULL)
+                                        free(aux_copy);
+                                free(page);
+                                return false;
+                        }
+                } else {
 			if (vm_alloc_page(stype, sp->va, sp->writable) &&
 				vm_claim_page(sp->va)) {
 				struct page *dp = spt_find_page(dst, sp->va);
