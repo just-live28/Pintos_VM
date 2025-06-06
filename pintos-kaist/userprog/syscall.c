@@ -16,6 +16,8 @@
 #include "filesys/filesys.h"        // 파일 시스템 전반에 대한 함수 및 초기화/포맷 인터페이스
 #include "filesys/file.h"           // 개별 파일 객체(file 구조체) 및 파일 입출력 함수 정의 (read, write 등)
 
+struct lock filesys_lock;
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 void check_address(void *addr);
@@ -64,6 +66,9 @@ syscall_init (void) {
 
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED) {
+#ifdef VM
+    thread_current()->stack_pointer = f->rsp;
+#endif
 	uint64_t syscall_num = f->R.rax;
 	uint64_t arg1 = f->R.rdi;
 	uint64_t arg2 = f->R.rsi;
@@ -249,8 +254,12 @@ static bool sys_remove(const char *file) {
 		return false;
 	}
 
+	lock_acquire(&filesys_lock);
+	bool success = filesys_remove(file);
+	lock_release(&filesys_lock);
+
 	// 파일 시스템에서 해당 파일 삭제 시도 후 성공/실패 여부 반환
-	return filesys_remove(file); 
+	return success;
 }
 
 static int sys_open(const char *file_name) {
@@ -315,6 +324,12 @@ static int sys_filesize(int fd) {
 static int sys_read(int fd, void *buffer, unsigned size) {
 	// 사용자 버퍼 포인터가 유효한지 확인
 	validate_ptr(buffer, size);
+
+#ifdef VM
+    struct page *page = spt_find_page(&thread_current()->spt, buffer);
+    if (page && !page->writable)
+        sys_exit(-1);
+#endif
 
 	// 버퍼를 문자 단위로 접근하기 위해 char 포인터로 변환
 	char *ptr = (char *)buffer;

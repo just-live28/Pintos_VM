@@ -140,10 +140,17 @@ page_fault (struct intr_frame *f) {
 	user = (f->error_code & PF_U) != 0;
 
 #ifdef VM
-	/* For project 3 and later. */
-	if (vm_try_handle_fault (f, fault_addr, user, write, not_present))
+	if ((!not_present && write) || (fault_addr < (void *)0x400000 || fault_addr >= USER_STACK)) {
+        sys_exit(-1);
+    }
+
+	if (vm_try_handle_fault (f, fault_addr, user, write, not_present)) {
 		return;
+	} else {
+		sys_exit(-1);
+	}
 #endif
+	
 
 	/* Count page faults. */
 	page_fault_cnt++;

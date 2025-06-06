@@ -11,10 +11,27 @@
    - 사용자 영역에 속하며
    - 현재 프로세스의 페이지 테이블에 매핑되어 있는지 확인 */
 static bool
-check_page (const void *uaddr) {
-    return uaddr != NULL &&
-           is_user_vaddr(uaddr) &&
-           pml4_get_page (thread_current ()->pml4, uaddr) != NULL;
+check_page(const void *uaddr) {
+    if (uaddr == NULL || !is_user_vaddr(uaddr)) {
+        return false;
+    }
+
+#ifdef VM
+    struct thread *curr = thread_current();
+    struct page *page = spt_find_page(&curr->spt, uaddr);
+
+    // 페이지가 존재하면 OK
+   if (page != NULL) return true;
+
+   void *rsp = curr->stack_pointer;
+   if((uaddr >= rsp -8 || uaddr >= rsp) && uaddr <= USER_STACK){
+    return true;
+   }
+   return false;
+
+#else
+    return pml4_get_page(thread_current()->pml4, uaddr) != NULL;
+#endif
 }
 
 /* 사용자 포인터 uaddr로부터 size 바이트까지의 주소 범위를
