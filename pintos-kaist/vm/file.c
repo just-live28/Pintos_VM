@@ -44,8 +44,9 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
-	/** Project 3-Swap In/Out */
+    lock_acquire(&filesys_lock);
 	int read = file_read_at(file_page->file, page->frame->kva, file_page->read_bytes, file_page->ofs);
+    lock_release(&filesys_lock);
 	memset(page->frame->kva + read, 0, PGSIZE - read);
 	return true;
 }
@@ -59,7 +60,9 @@ file_backed_swap_out (struct page *page) {
 
 	if (pml4_is_dirty(thread_current()->pml4, page->va))
 	{
+        lock_acquire(&filesys_lock);
 		file_write_at(file_page->file, page->frame->kva, file_page->read_bytes, file_page->ofs);
+        lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, false);
 	}
 	page->frame->page = NULL;

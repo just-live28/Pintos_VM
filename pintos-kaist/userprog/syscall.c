@@ -126,11 +126,11 @@ void syscall_handler(struct intr_frame *f UNUSED) {
 		f->R.rax = sys_tell(arg1);
 		break;
 	case SYS_MMAP:
-        f->R.rax = sys_mmap(arg1, arg2, arg3, arg4, arg5);
-    	break;
+		f->R.rax = sys_mmap((void *)arg1, (size_t)arg2, (int)arg3, (int)arg4, (off_t)arg5);
+		break;
 	case SYS_MUNMAP:
-        sys_munmap(arg1);
-        break;
+		sys_munmap((void *)arg1);
+		break;
 
 	default:
 		thread_exit();
@@ -303,19 +303,17 @@ static int sys_open(const char *file_name) {
 }
 
 static void sys_close(int fd) {
-	// 파일 디스크립터를 통해 파일 객체 가져오기
-	struct file *file = process_get_file(fd);
+	struct thread *curr = thread_current();
 
-	// 유효하지 않거나 이미 닫힌 fd인 경우 return
-	if (file == NULL) {
-		return;
+	lock_acquire(&filesys_lock);
+
+	struct file *file = process_get_file(fd);
+	if (file != NULL) {
+		file_close(file);
+		curr->FDT[fd] = NULL;
 	}
 
-	// 파일을 닫고 관련 자원 해제
-	file_close(file);
-
-	// 현재 스레드의 파일 디스크립터 테이블에서 해당 엔트리 비우기
-	thread_current()->FDT[fd] = NULL;
+	lock_release(&filesys_lock);
 }
 
 static int sys_filesize(int fd) {
