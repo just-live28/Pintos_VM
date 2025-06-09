@@ -577,6 +577,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* Open executable file. */
 	lock_acquire(&filesys_lock);
 	file = filesys_open (file_name);
+	lock_release(&filesys_lock);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
@@ -661,7 +662,6 @@ load (const char *file_name, struct intr_frame *if_) {
 done:
 	if (!success && file != NULL)
 		file_close(file); // 성공하지 못한 경우 파일 닫기
-	lock_release(&filesys_lock);
 	return success;		  // load 성공 여부 반환	
 }
 
