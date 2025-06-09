@@ -15,6 +15,7 @@
 #include "filesys/directory.h"      // 디렉터리 관련 자료구조 및 함수 (디렉터리 열기, 탐색 등)
 #include "filesys/filesys.h"        // 파일 시스템 전반에 대한 함수 및 초기화/포맷 인터페이스
 #include "filesys/file.h"           // 개별 파일 객체(file 구조체) 및 파일 입출력 함수 정의 (read, write 등)
+#include "vm/file.h"
 
 struct lock filesys_lock;
 
@@ -36,6 +37,9 @@ static int sys_filesize(int fd);
 static int sys_read(int fd, void *buffer, unsigned size);
 static void sys_seek(int fd, unsigned position);
 static unsigned sys_tell(int fd);
+
+void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void sys_munmap(void *addr);
 
 /* System call.
  *
@@ -121,6 +125,12 @@ void syscall_handler(struct intr_frame *f UNUSED) {
 	case SYS_TELL:
 		f->R.rax = sys_tell(arg1);
 		break;
+	case SYS_MMAP:
+        f->R.rax = sys_mmap(arg1, arg2, arg3, arg4, arg5);
+    	break;
+	case SYS_MUNMAP:
+        sys_munmap(arg1);
+        break;
 
 	default:
 		thread_exit();
@@ -434,4 +444,29 @@ static unsigned sys_tell(int fd)
 
 	// 현재 파일의 읽기/쓰기 위치(offset)를 반환
 	return file_tell(file);
+}
+
+void *
+sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset) {
+    if (!addr || pg_round_down(addr) != addr || is_kernel_vaddr(addr) || is_kernel_vaddr(addr + length))
+        return NULL;
+
+    if (offset != pg_round_down(offset) || offset % PGSIZE != 0)
+        return NULL;
+
+    if (spt_find_page(&thread_current()->spt, addr))
+        return NULL;
+
+	if (fd < 3)
+        return NULL;
+
+    struct file *file = process_get_file(fd);
+    if (file == NULL || file_length(file) == 0 || (long)length <= 0)
+        return NULL;
+
+    return do_mmap(addr, length, writable, file, offset);
+}
+
+void sys_munmap(void *addr) {
+    do_munmap(addr);
 }

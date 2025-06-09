@@ -14,4 +14,6 @@ struct thread *get_child_by_tid(tid_t child_tid);
 int process_add_file(struct file *file);
 struct file *process_get_file(int fd);
 
+bool lazy_load_segment(struct page *page, void *aux);
+
 #endif /* userprog/process.h */

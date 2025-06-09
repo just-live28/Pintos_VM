@@ -259,9 +259,11 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 	while (hash_next(&i))
 	{
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-		enum vm_type src_type = src_page->operations->type;
+		enum vm_type type = src_page->operations->type;
+		void *upage = src_page->va;
+        bool writable = src_page->writable;
 
-		if (src_type == VM_UNINIT)
+		if (type == VM_UNINIT)
 		{
 			vm_alloc_page_with_initializer(
 				src_page->uninit.type,
@@ -270,12 +272,28 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 				src_page->uninit.init,
 				src_page->uninit.aux);
 		}
+		else if (type == VM_FILE) {
+            struct lazy_load_arg *aux = malloc(sizeof(struct lazy_load_arg));
+            aux->file = src_page->file.file;
+            aux->ofs = src_page->file.ofs;
+            aux->read_bytes = src_page->file.read_bytes;
+
+            if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, aux))
+                return false;
+
+            struct page *dst_page = spt_find_page(dst, upage);
+            file_backed_initializer(dst_page, type, NULL);
+            dst_page->frame = src_page->frame;
+            pml4_set_page(thread_current()->pml4, dst_page->va, src_page->frame->kva, src_page->writable);
+        }
 		else
 		{
-			if (vm_alloc_page(src_type, src_page->va, src_page->writable) && vm_claim_page(src_page->va))
+			if (vm_alloc_page(type, upage, writable) && vm_claim_page(upage))
 			{
-				struct page *dst_page = spt_find_page(dst, src_page->va);
+				struct page *dst_page = spt_find_page(dst, upage);
 				memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+			} else {
+				return false;
 			}
 		}
 	}
