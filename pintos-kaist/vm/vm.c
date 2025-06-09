@@ -9,7 +9,9 @@ uint64_t page_hash(const struct hash_elem *e, void *aux);
 bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux);
 void hash_page_destroy(struct hash_elem *e, void *aux);
 
-static struct list frame_table;
+struct list frame_table;
+struct lock frame_lock;
+struct list_elem *next = NULL;	// victim 선정용 전역 포인터
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -22,6 +24,7 @@ vm_init (void) {
 #endif
 	register_inspect_intr ();
 	list_init(&frame_table);
+	lock_init(&frame_lock);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -110,8 +113,18 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 static struct frame *
 vm_get_victim (void) {
 	struct frame *victim = NULL;
-	 /* TODO: The policy for eviction is up to you. */
-
+	lock_acquire(&frame_lock);
+	for (next = list_begin(&frame_table); next != list_end(&frame_table); next = list_next(next))
+	{
+		victim = list_entry(next, struct frame, frame_elem);
+		if (pml4_is_accessed(thread_current()->pml4, victim->page->va)) {
+			pml4_set_accessed(thread_current()->pml4, victim->page->va, false);
+		} else {
+			lock_release(&frame_lock);
+			return victim;
+		}
+	}
+	lock_release(&frame_lock);
 	return victim;
 }
 
@@ -119,10 +132,10 @@ vm_get_victim (void) {
  * Return NULL on error.*/
 static struct frame *
 vm_evict_frame (void) {
-	struct frame *victim UNUSED = vm_get_victim ();
-	/* TODO: swap out the victim and return the evicted frame. */
-
-	return NULL;
+	struct frame *victim = vm_get_victim ();
+	if (victim->page)
+		swap_out(victim->page);
+	return victim;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -136,10 +149,13 @@ vm_get_frame (void) {
 
 	frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);  
 
-    if (frame->kva == NULL)
+    if (frame->kva == NULL) {
         frame = vm_evict_frame();  
-    else
+	} else {
+		lock_acquire(&frame_lock);
         list_push_back(&frame_table, &frame->frame_elem);
+		lock_release(&frame_lock);
+	}
 
     frame->page = NULL;
 
