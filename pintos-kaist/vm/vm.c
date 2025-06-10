@@ -8,6 +8,7 @@
 uint64_t page_hash(const struct hash_elem *e, void *aux);
 bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux);
 void hash_page_destroy(struct hash_elem *e, void *aux);
+static bool vm_copy_claim_page(struct supplemental_page_table *dst, void *va, void *kva, bool writable);
 
 struct list frame_table;
 struct lock frame_lock;
@@ -181,6 +182,23 @@ vm_stack_growth (void *addr UNUSED) {
 /* Handle the fault on write_protected page */
 static bool
 vm_handle_wp (struct page *page UNUSED) {
+	/** Project 3-Copy On Write */
+    if (!page->accessible)
+        return false;
+
+    void *kva = page->frame->kva;
+
+    page->frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);
+
+    if (page->frame->kva == NULL)
+        page->frame = vm_evict_frame();  
+		
+    memcpy(page->frame->kva, kva, PGSIZE);
+
+    if (!pml4_set_page(thread_current()->pml4, page->va, page->frame->kva, page->accessible))
+        return false;
+
+    return true;
 }
 
 /* 스택은 최대 1 MiB, USER_STACK 기준 아래로 확장할 수 있다. */
@@ -204,7 +222,7 @@ vm_try_handle_fault (struct intr_frame *f, void *fault_addr,
     struct page *page = spt_find_page (spt, fault_addr);
 
     if (!not_present && write)
-        return false;
+        return vm_handle_wp(page);
 
     if (page != NULL) {
         if (write && !page->writable)
@@ -301,15 +319,13 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
             dst_page->frame = src_page->frame;
             pml4_set_page(thread_current()->pml4, dst_page->va, src_page->frame->kva, src_page->writable);
         }
-		else
-		{
-			if (vm_alloc_page(type, upage, writable) && vm_claim_page(upage))
-			{
-				struct page *dst_page = spt_find_page(dst, upage);
-				memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
-			} else {
+		else {
+			if (!vm_alloc_page(type, upage, writable))
 				return false;
-			}
+			
+			if (!vm_copy_claim_page(dst, upage, src_page->frame->kva, writable))
+				return false;
+
 		}
 	}
 	return true;
@@ -343,4 +359,31 @@ hash_page_destroy(struct hash_elem *e, void *aux)
     struct page *page = hash_entry(e, struct page, hash_elem);
     destroy(page);
     free(page);
+}
+
+static bool 
+vm_copy_claim_page(struct supplemental_page_table *dst, void *va, void *kva, bool writable) {
+    struct page *page = spt_find_page(dst, va);
+
+    if (page == NULL)
+        return false;
+
+    struct frame *frame = (struct frame *)malloc(sizeof(struct frame));
+
+    if (!frame)
+        return false;
+
+    page->accessible = writable; 
+    frame->page = page;
+    page->frame = frame;
+    frame->kva = kva;
+
+    if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, false)) {
+        free(frame);
+        return false;
+    }
+
+    list_push_back(&frame_table, &frame->frame_elem); 
+
+    return swap_in(page, frame->kva);
 }

@@ -4,6 +4,7 @@
 #include "devices/disk.h"
 #include <bitmap.h>
 #include "threads/vaddr.h"
+#include "threads/mmu.h"
 
 #define SECTOR_PER_PAGE (PGSIZE / DISK_SECTOR_SIZE)
 
@@ -109,4 +110,5 @@ anon_destroy (struct page *page) {
         free(page->frame);
         page->frame = NULL;
     }
+	pml4_clear_page(thread_current()->pml4, page->va);
 }
