@@ -172,7 +172,6 @@ vm_stack_growth (void *addr UNUSED) {
         success = vm_claim_page(addr);
 
         if (success) {
-            thread_current()->stack_bottom -= PGSIZE;
 			return true;
         }
     }
