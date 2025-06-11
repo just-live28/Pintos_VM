@@ -577,11 +577,13 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* Open executable file. */
 	lock_acquire(&filesys_lock);
 	file = filesys_open (file_name);
-	lock_release(&filesys_lock);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+
+	file_deny_write(file);		// 현재 실행 중인 파일 쓰기 금지
+	t->running_file = file;		// 스레드의 running_file을 현재 파일로 설정
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -656,12 +658,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->rip = ehdr.e_entry;
 
 	success = true;
-	file_deny_write(file);		// 현재 실행 중인 파일 쓰기 금지
-	t->running_file = file;		// 스레드의 running_file을 현재 파일로 설정
 	goto done;
 done:
-	if (!success && file != NULL)
-		file_close(file); // 성공하지 못한 경우 파일 닫기
+	lock_release(&filesys_lock);
 	return success;		  // load 성공 여부 반환	
 }
 
@@ -857,7 +856,6 @@ bool lazy_load_segment(struct page *page, void *aux)
 
 
 	file_seek(lazy_load_arg->file, lazy_load_arg->ofs);
-
 	if (file_read(lazy_load_arg->file, page->frame->kva, lazy_load_arg->read_bytes) != (int)(lazy_load_arg->read_bytes))
 	{
 		palloc_free_page(page->frame->kva);
