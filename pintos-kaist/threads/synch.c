@@ -390,18 +390,17 @@ void donation_priority(struct thread *t){
 	if(thread_mlfqs) return;
 
 	struct thread *nt;
-	while ((t->waiting)){
+	int depth = 0;
+	while (t->waiting && depth < 8){
 		nt = t->waiting->holder;
 		if(nt == NULL) break;
 
-		
 		list_sort(&nt->donation_list,cmp_priority,NULL);
-		
-
 		if (nt->priority < t->priority)
 			nt->priority = t->priority;
 
 		t = nt;
+		depth++;
 	}
 }
 
