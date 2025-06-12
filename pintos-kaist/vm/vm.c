@@ -188,12 +188,14 @@ vm_handle_wp (struct page *page UNUSED) {
 
     void *kva = page->frame->kva;
 
+	lock_acquire(&frame_lock);
     page->frame->kva = palloc_get_page(PAL_USER | PAL_ZERO);
 
     if (page->frame->kva == NULL)
         page->frame = vm_evict_frame();  
 		
     memcpy(page->frame->kva, kva, PGSIZE);
+	lock_release(&frame_lock);
 
     if (!pml4_set_page(thread_current()->pml4, page->va, page->frame->kva, page->accessible))
         return false;
@@ -306,19 +308,40 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 				src_page->uninit.aux);
 		}
 		else if (type == VM_FILE) {
-            struct lazy_load_arg *aux = malloc(sizeof(struct lazy_load_arg));
-            aux->file = src_page->file.file;
-            aux->ofs = src_page->file.ofs;
-            aux->read_bytes = src_page->file.read_bytes;
+			struct lazy_load_arg *aux = malloc(sizeof(struct lazy_load_arg));
+			aux->file = src_page->file.file;
+			aux->ofs = src_page->file.ofs;
+			aux->read_bytes = src_page->file.read_bytes;
+			aux->zero_bytes = src_page->file.zero_bytes;
 
-            if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, aux))
-                return false;
+			if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, aux))
+				return false;
 
-            struct page *dst_page = spt_find_page(dst, upage);
-            file_backed_initializer(dst_page, type, NULL);
-            dst_page->frame = src_page->frame;
-            pml4_set_page(thread_current()->pml4, dst_page->va, src_page->frame->kva, src_page->writable);
-        }
+			struct page *dst_page = spt_find_page(dst, upage);
+			if (dst_page == NULL)
+				return false;
+
+			void *new_kva = palloc_get_page(PAL_USER | PAL_ZERO);
+			if (new_kva == NULL)
+				return false;
+
+			memcpy(new_kva, src_page->frame->kva, PGSIZE);
+
+			if (!pml4_set_page(thread_current()->pml4, dst_page->va, new_kva, writable))
+				return false;
+
+			struct frame *frame = malloc(sizeof(struct frame));
+			if (frame == NULL)
+				return false;
+
+			frame->kva = new_kva;
+			frame->page = dst_page;
+			dst_page->frame = frame;
+
+			lock_acquire(&frame_lock);
+			list_push_back(&frame_table, &frame->frame_elem);
+			lock_release(&frame_lock);
+		}
 		else {
 			if (!vm_alloc_page(type, upage, writable))
 				return false;
@@ -383,7 +406,9 @@ vm_copy_claim_page(struct supplemental_page_table *dst, void *va, void *kva, boo
         return false;
     }
 
+	lock_acquire(&frame_lock);
     list_push_back(&frame_table, &frame->frame_elem); 
+	lock_release(&frame_lock);
 
     return swap_in(page, frame->kva);
 }
