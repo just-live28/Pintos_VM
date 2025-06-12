@@ -253,15 +253,7 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
-int process_exec(void *f_name)
-{
-	// 최대 MAX_ARGS 개수만큼의 인자들을 저장할 배열 선언
-	char *argv[MAX_ARGS];
-
-	// f_name은 "실행파일명 인자1 인자2 ..." 형태의 문자열임
-	// 이를 공백 기준으로 파싱하여 argv에 저장하고 argc에 개수를 저장
-	int argc = parse_args(f_name, argv);
-
+int process_exec(void *f_name) {
 	bool success;
 
 	/* intr_frame 구조체는 유저 프로세스의 레지스터 정보를 저장
@@ -279,6 +271,13 @@ int process_exec(void *f_name)
 	 * - 페이지 테이블 해제
 	 * - 유저 스택 정리 등 */
 	process_cleanup();
+
+	// 최대 MAX_ARGS 개수만큼의 인자들을 저장할 배열 선언
+	char *argv[MAX_ARGS];
+
+	// f_name은 "실행파일명 인자1 인자2 ..." 형태의 문자열임
+	// 이를 공백 기준으로 파싱하여 argv에 저장하고 argc에 개수를 저장
+	int argc = parse_args(f_name, argv);
 
 	/* 파일 이름 파싱 결과의 첫 번째 토큰은 실제 실행할 파일 이름임 */
 	ASSERT(argv[0] != NULL);
@@ -375,12 +374,10 @@ static void argument_stack(char *argv[], int argc, struct intr_frame *_if) {
  * does nothing. */
 int process_wait(tid_t child_tid) {
 	// 인터럽트를 비활성화하여 동기화 문제를 방지하고 현재 스레드를 얻음
-	enum intr_level old_level = intr_disable();
 	struct thread *cur = thread_current();
 
 	// 현재 스레드(부모)의 자식 리스트에서 주어진 TID를 가진 자식을 탐색
 	struct thread *search_cur = get_child_by_tid(child_tid);
-	intr_set_level(old_level); // 인터럽트 다시 활성화
 
 	// 만약 해당 자식이 존재하지 않는다면 잘못된 접근이므로 -1 반환
 	if (search_cur == NULL)

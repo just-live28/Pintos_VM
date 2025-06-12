@@ -217,39 +217,11 @@ tid_t sys_fork(const char *thread_name, struct intr_frame *f) {
 static bool sys_create(const char *file, unsigned initial_size) {
 	// 사용자 포인터가 유효한지 검사
 	validate_ptr(file, 1);
-
-	// 유저 영역에 있는 파일 이름 문자열을 커널 영역의 안전한 버퍼로 복사
-	char kernel_buf[NAME_MAX + 1];  // 최대 이름 길이 + 널 문자 고려
-    if (!copy_in(kernel_buf, file, sizeof kernel_buf)) {
-        return false; // 문자열 복사 실패 → 파일 이름을 읽을 수 없으므로 실패
-    }
-
-	// 빈 문자열이면 파일 이름으로 부적절하므로 생성 불가
-	if (strlen(kernel_buf) == 0) {
-		return false;
-	}
-
-	// 루트 디렉토리 열기 → Pintos는 루트 디렉토리를 기본 작업 디렉토리로 사용
-	struct dir *dir = dir_open_root();
-	if (dir == NULL) {
-		return false; // 루트 디렉토리 열기에 실패한 경우
-	}
-
-	struct inode *inode;
-
-	// 동일한 이름의 파일이 이미 존재하는지 확인
-    if (dir_lookup(dir, kernel_buf, &inode)) {
-		dir_close(dir);  // 디렉토리 닫기
-		return false;    // 이미 존재하는 파일 이름 → 생성 실패
-	}
 	
 	// 파일 시스템 락을 획득한 후 파일 생성 시도 (동시성 보호)
 	lock_acquire(&filesys_lock);
-	bool success = filesys_create(kernel_buf, initial_size);
+	bool success = filesys_create(file, initial_size);
 	lock_release(&filesys_lock);	// 작업 완료 이후 락 해제
-
-	// 디렉토리 자원 정리
-	dir_close(dir);
 
 	// 파일 생성 성공 여부 반환
 	return success;
@@ -332,7 +304,6 @@ static int sys_filesize(int fd) {
 static int sys_read(int fd, void *buffer, unsigned size) {
 	// 사용자 버퍼 포인터가 유효한지 확인
 	validate_ptr(buffer, size);
-
 #ifdef VM
     struct page *page = spt_find_page(&thread_current()->spt, buffer);
     if (page && !page->writable)
@@ -343,9 +314,6 @@ static int sys_read(int fd, void *buffer, unsigned size) {
 	char *ptr = (char *)buffer;
 	int bytes_read = 0;
 
-	// 파일 시스템 동시 접근 방지를 위한 락 획득
-	lock_acquire(&filesys_lock);
-
 	if (fd == STDIN_FILENO)  // 표준 입력일 경우
 	{
 		// 키보드 입력을 한 글자씩 읽어서 버퍼에 저장
@@ -353,26 +321,23 @@ static int sys_read(int fd, void *buffer, unsigned size) {
 			*ptr++ = input_getc();
 			bytes_read++;
 		}
-		lock_release(&filesys_lock);
 	}
 	else
 	{
 		// stdout(1), stderr(2), 음수 등 읽을 수 없는 fd는 실패 처리
 		if (fd < 3) {
-			lock_release(&filesys_lock);
 			return -1;
 		}
 
 		// 파일 디스크립터 테이블에서 파일 객체 가져오기
 		struct file *file = process_get_file(fd);
 		if (file == NULL) {
-			lock_release(&filesys_lock);
 			return -1;
 		}
 
 		// 파일에서 size만큼 읽어 버퍼에 저장
+		lock_acquire(&filesys_lock);
 		bytes_read = file_read(file, buffer, size);
-
 		lock_release(&filesys_lock);
 	}
 
